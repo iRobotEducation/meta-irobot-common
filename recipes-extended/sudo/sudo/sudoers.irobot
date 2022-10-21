@@ -1,0 +1,33 @@
+## sudoers file.
+##
+## User privilege specification
+##
+root ALL=(ALL) ALL
+
+Cmnd_Alias IFUP=/sbin/ifup
+Cmnd_Alias IFDOWN=/sbin/ifdown
+Cmnd_Alias PROVISION=/usr/bin/provision
+Cmnd_Alias HOSTAPDCLI=/usr/sbin/hostapd_cli
+Cmnd_Alias WPACLI=/usr/sbin/wpa_cli
+Cmnd_Alias VER=/usr/bin/version
+Cmnd_Alias AP=/usr/bin/aplay
+Cmnd_Alias REBOOT=/sbin/reboot
+Cmnd_Alias SFWI=/usr/bin/slave_firmware_install.sh
+Cmnd_Alias OTA=/usr/bin/ota_install.sh
+Cmnd_Alias LANG=/usr/bin/lang_install.sh
+Cmnd_Alias SUSPEND=/usr/bin/suspend.sh
+Cmnd_Alias DATE=/bin/date
+Cmnd_Alias ARPING=/sbin/arping
+Cmnd_Alias ARPING2=/usr/sbin/arping
+Cmnd_Alias MOBSIGNAL=/usr/bin/mobsignal.sh
+Cmnd_Alias UARTMONITOR=/usr/bin/uartmonitor
+Cmnd_Alias NET_DEV_INTF_CTL=/usr/bin/network_device_interfaces_control.sh
+Cmnd_Alias CPU_PWR_SAVE_CTL=/usr/bin/cpu_power_save_control.sh
+Cmnd_Alias RND=/usr/bin/restart_ntpd_daemon.sh
+Cmnd_Alias DUMP_ADMIN_FILES_DATA=/usr/bin/dump_admin_access_files_data.sh
+Cmnd_Alias GET_MOB_PINS=/usr/bin/get_proj_mob_pin_det.sh
+Cmnd_Alias WEB_SERVER_CONTROL=/usr/bin/webserver_control.sh
+Cmnd_Alias GET_FIRMWARE_UPDATE=/opt/irobot/bin/get-firmware-update.sh
+Cmnd_Alias FACTORY_RESET=/usr/bin/factory/factory-reset
+Cmnd_Alias SETUP_BLE=/usr/bin/setup-ble.sh
+apps  ALL=(ALL) NOPASSWD: IFUP, IFDOWN, PROVISION, HOSTAPDCLI, WPACLI, VER, AP, REBOOT, SFWI, OTA, LANG, SUSPEND, DATE, ARPING, ARPING2, MOBSIGNAL, UARTMONITOR, NET_DEV_INTF_CTL, CPU_PWR_SAVE_CTL, RND, DUMP_ADMIN_FILES_DATA, GET_MOB_PINS, WEB_SERVER_CONTROL, GET_FIRMWARE_UPDATE, FACTORY_RESET, SETUP_BLE

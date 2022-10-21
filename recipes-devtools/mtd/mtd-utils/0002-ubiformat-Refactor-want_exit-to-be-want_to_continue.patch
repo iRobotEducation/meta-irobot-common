@@ -1,0 +1,100 @@
+From 0d3a8fc0fde950f4eaedf58f76883b3a602e388f Mon Sep 17 00:00:00 2001
+From: Patrick Doyle <pdoyle@irobot.com>
+Date: Mon, 20 Jul 2020 11:38:18 -0400
+Subject: [PATCH] ubiformat: Refactor want_exit to be want_to_continue.
+
+Signed-off-by: Patrick Doyle <pdoyle@irobot.com>
+---
+ ubi-utils/ubiformat.c | 42 ++++++++++++++++++++++++------------------
+ 1 file changed, 24 insertions(+), 18 deletions(-)
+
+diff --git a/ubi-utils/ubiformat.c b/ubi-utils/ubiformat.c
+index c38b9b4..508ea6e 100644
+--- a/ubi-utils/ubiformat.c
++++ b/ubi-utils/ubiformat.c
+@@ -37,6 +37,7 @@
+ #include <stdlib.h>
+ #include <getopt.h>
+ #include <fcntl.h>
++#include <stdarg.h>
+ 
+ #include <libubi.h>
+ #include <libmtd.h>
+@@ -244,9 +245,24 @@ static int parse_opt(int argc, char * const argv[])
+ 	return 0;
+ }
+ 
+-static int want_exit(void)
++static bool want_to_continue(const char *fmt, ...)
+ {
+-	return prompt("continue?", false) == true ? 0 : 1;
++	if (fmt && (!args.yes || !args.quiet)) {
++		va_list ap;
++		va_start(ap, fmt);
++		fprintf(stderr, "%s: warning!: ", PROGRAM_NAME);
++		vfprintf(stderr, fmt, ap);
++		fputc('\n', stderr);
++		va_end(ap);
++	}
++	if (args.yes) {
++		if (!args.quiet) {
++			fprintf(stderr, "%s: continue (y/N) yes\n", PROGRAM_NAME);
++		}
++		return true;
++	} else {
++		return prompt("continue?", false);
++	}
+ }
+ 
+ static int answer_is_yes(const char *msg)
+@@ -833,12 +849,8 @@ int main(int argc, char * const argv[])
+ 	}
+ 
+ 	if (si->alien_cnt) {
+-		if (!args.yes || !args.quiet)
+-			warnmsg("%d of %d eraseblocks contain non-UBI data",
+-				si->alien_cnt, si->good_cnt);
+-		if (!args.yes && want_exit()) {
+-			if (args.yes && !args.quiet)
+-				printf("yes\n");
++		if (!want_to_continue("%d of %d eraseblocks contain non-UBI data",
++				      si->alien_cnt, si->good_cnt)) {
+ 			goto out_free;
+ 		}
+ 	}
+@@ -852,28 +864,22 @@ int main(int argc, char * const argv[])
+ 		 */
+ 		if (percent < 50) {
+ 			if (!args.yes || !args.quiet) {
+-				warnmsg("only %d of %d eraseblocks have valid erase counter",
+-					si->ok_cnt, si->good_cnt);
+ 				normsg("erase counter 0 will be used for all eraseblocks");
+ 				normsg("note, arbitrary erase counter value may be specified using -e option");
+ 			}
+-			if (!args.yes && want_exit()) {
+-				if (args.yes && !args.quiet)
+-					printf("yes\n");
++			if (!want_to_continue("only %d of %d eraseblocks have valid erase counter",
++					      si->ok_cnt, si->good_cnt)) {
+ 				goto out_free;
+ 			}
+ 			 args.ec = 0;
+ 			 args.override_ec = 1;
+ 		} else if (percent < 95) {
+ 			if (!args.yes || !args.quiet) {
+-				warnmsg("only %d of %d eraseblocks have valid erase counter",
+-					si->ok_cnt, si->good_cnt);
+ 				normsg("mean erase counter %lld will be used for the rest of eraseblock",
+ 				       si->mean_ec);
+ 			}
+-			if (!args.yes && want_exit()) {
+-				if (args.yes && !args.quiet)
+-					printf("yes\n");
++			if (!want_to_continue("only %d of %d eraseblocks have valid erase counter",
++					      si->ok_cnt, si->good_cnt)) {
+ 				goto out_free;
+ 			}
+ 			args.ec = si->mean_ec;
+-- 
+2.24.1
+

@@ -1,0 +1,13 @@
+diff --git a/include/hrd/image_header.h b/include/hrd/image_header.h
+index 9ca5f10..78538b8 100644
+--- a/include/hrd/image_header.h
++++ b/include/hrd/image_header.h
+@@ -20,7 +20,7 @@
+ 
+ typedef struct image_header
+ {
+-  u_int32_t size; /* size of image in bytes, including this header. */
++  unsigned int size; /* size of image in bytes, including this header. */
+   unsigned char chip_id;
+   unsigned char product_id;
+   unsigned char unused[2];

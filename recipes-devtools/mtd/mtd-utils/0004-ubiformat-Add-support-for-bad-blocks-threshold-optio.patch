@@ -1,0 +1,168 @@
+From 22cab2e28a90622b61bb31584042bd19739beeb6 Mon Sep 17 00:00:00 2001
+From: Patrick Doyle <pdoyle@irobot.com>
+Date: Mon, 20 Jul 2020 11:39:52 -0400
+Subject: [PATCH] ubiformat: Add support for --bad-blocks-threshold option
+
+Stop and ask if too many bad blocks are detected when formatting.
+Default value is 0, indicating any number of bad blocks are
+acceptable (and therefore no questions will be asked).
+
+Signed-off-by: Patrick Doyle <pdoyle@irobot.com>
+---
+ ubi-utils/ubiformat.c | 100 ++++++++++++++++++++++++------------------
+ 1 file changed, 58 insertions(+), 42 deletions(-)
+
+diff --git a/ubi-utils/ubiformat.c b/ubi-utils/ubiformat.c
+index c532b03..1d2cbae 100644
+--- a/ubi-utils/ubiformat.c
++++ b/ubi-utils/ubiformat.c
+@@ -59,6 +59,7 @@ struct args {
+ 	int subpage_size;
+ 	int vid_hdr_offs;
+ 	int ubi_ver;
++	int bad_blocks_threshold;
+ 	uint32_t image_seq;
+ 	off_t image_sz;
+ 	long long ec;
+@@ -76,59 +77,62 @@ static const char doc[] = PROGRAM_NAME " version " VERSION
+ 		" - a tool to format MTD devices and flash UBI images";
+ 
+ static const char optionsstr[] =
+-"-s, --sub-page-size=<bytes>  minimum input/output unit used for UBI\n"
+-"                             headers, e.g. sub-page size in case of NAND\n"
+-"                             flash (equivalent to the minimum input/output\n"
+-"                             unit size by default)\n"
+-"-O, --vid-hdr-offset=<offs>  offset if the VID header from start of the\n"
+-"                             physical eraseblock (default is the next\n"
+-"                             minimum I/O unit or sub-page after the EC\n"
+-"                             header)\n"
+-"-n, --no-volume-table        only erase all eraseblock and preserve erase\n"
+-"                             counters, do not write empty volume table\n"
+-"-f, --flash-image=<file>     flash image file, or '-' for stdin\n"
+-"-S, --image-size=<bytes>     bytes in input, if not reading from file\n"
+-"-e, --erase-counter=<value>  use <value> as the erase counter value for all\n"
+-"                             eraseblocks\n"
+-"-x, --ubi-ver=<num>          UBI version number to put to EC headers\n"
+-"                             (default is 1)\n"
+-"-Q, --image-seq=<num>        32-bit UBI image sequence number to use\n"
+-"                             (by default a random number is picked)\n"
+-"-y, --yes                    assume the answer is \"yes\" for all question\n"
+-"                             this program would otherwise ask\n"
+-"-N, --no                     assume the answer is \"no\" for all\n"
+-"                             questions this program would otherwise ask\n"
+-"-q, --quiet                  suppress progress percentage information\n"
+-"-v, --verbose                be verbose\n"
+-"-h, -?, --help               print help message\n"
+-"-V, --version                print program version\n";
++"-s, --sub-page-size=<bytes>      minimum input/output unit used for UBI\n"
++"                                 headers, e.g. sub-page size in case of NAND\n"
++"                                 flash (equivalent to the minimum\n"
++"                                 input/output unit size by default)\n"
++"-O, --vid-hdr-offset=<offs>      offset if the VID header from start of the\n"
++"                                 physical eraseblock (default is the next\n"
++"                                 minimum I/O unit or sub-page after the EC\n"
++"                                 header)\n"
++"-n, --no-volume-table            only erase all eraseblock and preserve erase\n"
++"                                 counters, do not write empty volume table\n"
++"-f, --flash-image=<file>         flash image file, or '-' for stdin\n"
++"-S, --image-size=<bytes>         bytes in input, if not reading from file\n"
++"-e, --erase-counter=<value>      use <value> as the erase counter value for\n"
++"                                 all eraseblocks\n"
++"-x, --ubi-ver=<num>              UBI version number to put to EC headers\n"
++"                                 (default is 1)\n"
++"-Q, --image-seq=<num>            32-bit UBI image sequence number to use\n"
++"                                 (by default a random number is picked)\n"
++"-y, --yes                        assume the answer is \"yes\" for all\n"
++"                                 questions this program would otherwise ask\n"
++"-N, --no                         assume the answer is \"no\" for all\n"
++"                                 questions this program would otherwise ask\n"
++"-b, --bad-blocks-threshold=<num> Number of bad blocks allowed before asking\n"
++"                                 for confirmation. 0 (default) -> no threshold\n"
++"-q, --quiet                      suppress progress percentage information\n"
++"-v, --verbose                    be verbose\n"
++"-h, -?, --help                   print help message\n"
++"-V, --version                    print program version\n";
+ 
+ static const char usage[] =
+ "Usage: " PROGRAM_NAME " <MTD device node file name> [-s <bytes>] [-O <offs>] [-n]\n"
+ "\t\t\t[-Q <num>] [-f <file>] [-S <bytes>] [-e <value>] [-x <num>] [-y] [-q] [-v] [-h]\n"
+ "\t\t\t[--sub-page-size=<bytes>] [--vid-hdr-offset=<offs>] [--no-volume-table]\n"
+ "\t\t\t[--flash-image=<file>] [--image-size=<bytes>] [--erase-counter=<value>]\n"
+-"\t\t\t[--image-seq=<num>] [--ubi-ver=<num>] [--yes] [--no] [--quiet] [--verbose]\n"
+-"\t\t\t[--help] [--version]\n\n"
++"\t\t\t[--image-seq=<num>] [--ubi-ver=<num>] [--yes] [--no] [--bad-blocks-threshold=<value>]\n"
++"\t\t\t[--quiet] [--verbose] [--help] [--version]\n\n"
+ "Example 1: " PROGRAM_NAME " /dev/mtd0 -y - format MTD device number 0 and do\n"
+ "           not ask questions.\n"
+ "Example 2: " PROGRAM_NAME " /dev/mtd0 -q -e 0 - format MTD device number 0,\n"
+ "           be quiet and force erase counter value 0.";
+ 
+ static const struct option long_options[] = {
+-	{ .name = "sub-page-size",   .has_arg = 1, .flag = NULL, .val = 's' },
+-	{ .name = "vid-hdr-offset",  .has_arg = 1, .flag = NULL, .val = 'O' },
+-	{ .name = "no-volume-table", .has_arg = 0, .flag = NULL, .val = 'n' },
+-	{ .name = "flash-image",     .has_arg = 1, .flag = NULL, .val = 'f' },
+-	{ .name = "image-size",      .has_arg = 1, .flag = NULL, .val = 'S' },
+-	{ .name = "yes",             .has_arg = 0, .flag = NULL, .val = 'y' },
+-	{ .name = "no",              .has_arg = 0, .flag = NULL, .val = 'N' },
+-	{ .name = "erase-counter",   .has_arg = 1, .flag = NULL, .val = 'e' },
+-	{ .name = "quiet",           .has_arg = 0, .flag = NULL, .val = 'q' },
+-	{ .name = "verbose",         .has_arg = 0, .flag = NULL, .val = 'v' },
+-	{ .name = "ubi-ver",         .has_arg = 1, .flag = NULL, .val = 'x' },
+-	{ .name = "help",            .has_arg = 0, .flag = NULL, .val = 'h' },
+-	{ .name = "version",         .has_arg = 0, .flag = NULL, .val = 'V' },
++	{ .name = "sub-page-size",        .has_arg = 1, .flag = NULL, .val = 's' },
++	{ .name = "vid-hdr-offset",       .has_arg = 1, .flag = NULL, .val = 'O' },
++	{ .name = "no-volume-table",      .has_arg = 0, .flag = NULL, .val = 'n' },
++	{ .name = "flash-image",          .has_arg = 1, .flag = NULL, .val = 'f' },
++	{ .name = "image-size",           .has_arg = 1, .flag = NULL, .val = 'S' },
++	{ .name = "yes",                  .has_arg = 0, .flag = NULL, .val = 'y' },
++	{ .name = "no",                   .has_arg = 0, .flag = NULL, .val = 'N' },
++	{ .name = "bad-blocks-threshold", .has_arg = 1, .flag = NULL, .val = 'b' },
++	{ .name = "erase-counter",        .has_arg = 1, .flag = NULL, .val = 'e' },
++	{ .name = "quiet",                .has_arg = 0, .flag = NULL, .val = 'q' },
++	{ .name = "verbose",              .has_arg = 0, .flag = NULL, .val = 'v' },
++	{ .name = "ubi-ver",              .has_arg = 1, .flag = NULL, .val = 'x' },
++	{ .name = "help",                 .has_arg = 0, .flag = NULL, .val = 'h' },
++	{ .name = "version",              .has_arg = 0, .flag = NULL, .val = 'V' },
+ 	{ NULL, 0, NULL, 0},
+ };
+ 
+@@ -141,7 +145,7 @@ static int parse_opt(int argc, char * const argv[])
+ 		int key, error = 0;
+ 		unsigned long int image_seq;
+ 
+-		key = getopt_long(argc, argv, "nh?VyNqve:x:s:O:f:S:", long_options, NULL);
++		key = getopt_long(argc, argv, "nh?VyNqve:x:s:O:f:S:b:", long_options, NULL);
+ 		if (key == -1)
+ 			break;
+ 
+@@ -189,6 +193,12 @@ static int parse_opt(int argc, char * const argv[])
+ 
+ 		case 'N':
+ 			args.no = 1;
++                        break;
++
++		case 'b':
++			args.bad_blocks_threshold = simple_strtoul(optarg, &error);
++			if (error || args.ubi_ver < 0)
++				return errmsg("bad bad-blocks-threshold: \"%s\"", optarg);
+ 			break;
+ 
+ 		case 'q':
+@@ -867,6 +877,12 @@ int main(int argc, char * const argv[])
+ 		print_bad_eraseblocks(&mtd, si);
+ 	}
+ 
++	if (args.bad_blocks_threshold > 0 && si->bad_cnt >= args.bad_blocks_threshold) {
++		if (!want_to_continue("%d bad blocks detected >= threshold %d",
++				      si->bad_cnt, args.bad_blocks_threshold))
++			goto out_free;
++	}
++
+ 	if (si->alien_cnt) {
+ 		if (!want_to_continue("%d of %d eraseblocks contain non-UBI data",
+ 				      si->alien_cnt, si->good_cnt)) {
+-- 
+2.24.1
+

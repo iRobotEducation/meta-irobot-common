@@ -1,0 +1,32 @@
+# /etc/network/interfaces -- configuration file for ifup(8), ifdown(8)
+ 
+# The loopback interface
+auto lo
+iface lo inet loopback
+
+# Wireless interface
+auto wlan0
+iface wlan0 inet dhcp
+    wireless_mode managed
+    wireless_essid any
+    wpa-driver wext
+    wpa-conf /etc/wpa_supplicant.conf
+    udhcpc_opts -t 1 -T 1 -b -S -x hostname:`hostname`
+
+# auto wlan1
+iface wlan1 inet static
+    pre-up ifconfig wlan1 txqueuelen 50
+    pre-up ip addr flush dev wlan1
+    address 192.168.2.1
+    netmask 255.255.255.0
+    up hostapd -B /etc/hostapd.conf
+    up udhcpd /etc/udhcpd.conf
+    down killall -9 hostapd
+    down killall -9 udhcpd
+
+# Wired interface
+auto eth0
+iface eth0 inet static
+    pre-up ip addr flush dev eth0 > /dev/null 2>&1 || true
+    address 192.168.186.2
+    netmask 255.255.255.0

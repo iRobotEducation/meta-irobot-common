@@ -1,0 +1,4 @@
+# update timestamp file once per hour, on the hour
+0 * * * *  /bin/date -u +%4Y%2m%2d%2H%2M%2S > /etc/timestamp
+# Run cordumps-cleanup.sh once in 24Hr which deletes core files older than 3 days
+0 1 * * * /usr/bin/coredumps-cleanup.sh

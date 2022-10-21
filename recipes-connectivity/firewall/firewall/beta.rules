@@ -1,0 +1,25 @@
+# beta firewall rules
+# drop all incoming and outgoing traffic on wlan0, wlan1.
+# allow traffic on other interfaces (eth0, usb0).
+*nat
+:PREROUTING ACCEPT [213:11421]
+:INPUT ACCEPT [178:5285]
+:OUTPUT ACCEPT [134:9004]
+:POSTROUTING ACCEPT [134:9004]
+COMMIT
+*mangle
+:PREROUTING ACCEPT [853:64238]
+:INPUT ACCEPT [821:58282]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [637:57209]
+:POSTROUTING ACCEPT [637:57209]
+COMMIT
+*filter
+:INPUT ACCEPT [61:4615]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [38:5973]
+-A INPUT -i wlan0 -p tcp -m tcp --dport 22 -j DROP
+-A INPUT -i wlan1 -p tcp -m tcp --dport 22 -j DROP
+-A INPUT -i wlan0 -p tcp -m tcp --dport 80 -j DROP
+-A INPUT -i wlan1 -p tcp -m tcp --dport 80 -j DROP
+COMMIT

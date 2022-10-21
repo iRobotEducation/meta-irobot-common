@@ -1,0 +1,101 @@
+#!/bin/sh
+DAEMON=/usr/sbin/ntpd
+NAME=ntpd
+DESC="Busybox NTP Daemon"
+if [ -f /usr/bin/ntp-status-script ]; then
+  DAEMONOPTS="-n -S /usr/bin/ntp-status-script"
+else
+  DAEMONOPTS="-n"
+fi
+
+test -r $DAEMON || exit 0
+SCRIPTNAME=`basename "$0"`
+
+daemon_state ()
+{
+  # check if the daemon is running
+  /sbin/start-stop-daemon -K -t -q --exec ${DAEMON} -- ${DAEMONOPTS}
+  return $?
+}
+
+daemon_stop ()
+{
+  # stop the daemon
+  echo "Stopping ${NAME}..."
+  /sbin/start-stop-daemon  -K -q --exec ${DAEMON} -- ${DAEMONOPTS} > /dev/null 2
+>&1
+  TCOUNT=0
+  # give the daemon a chance to end.  may take the bb thread 5 seconds to end
+  daemon_state
+  while [ $? -eq "0" ]
+  do
+    TCOUNT=$(($TCOUNT + 1))
+    if [ "$TCOUNT" -gt "10" ] ; then
+      # timeout waiting for daemon to die
+      killall -9 ${DAEMON} > /dev/null 2>&1
+      break
+    fi
+    sleep 1
+    daemon_state
+  done
+  echo done with daemon
+}
+
+daemon_start ()
+{
+  # start a pipe to capture program output for use by logger
+  mkfifo /tmp/$NAME.pipe > /dev/null 2>&1
+  (
+    while true;
+    do
+      # send output of the pipe to syslog
+      logger -t $NAME < /tmp/$NAME.pipe&
+      /sbin/start-stop-daemon -S -q --exec $DAEMON -- $DAEMONOPTS  > /tmp/$NAME.pipe 2>&1
+      RC=$?
+      echo "Server '${NAME}' crashed with exit code ${RC}. Respawning.."\
+        2>&1 | logger -t $NAME
+      sleep 5
+    done
+  ) > /dev/null 2>&1 &
+}
+
+case "$1" in
+    start)
+        # start the daemon
+        daemon_start
+        ;;
+    stop)
+        # stop the init script
+        kill `ps -w | grep -v grep | grep -v ps -w | grep -v kill |
+        grep ${SCRIPTNAME} | grep start | grep -v $$ | cut -c1-6` > /dev/null 2>&1
+        sync
+        # stop the daemon
+        daemon_stop
+        sync
+        echo "Server '${NAME}' was stopped gracefully." 2>&1 | logger -t $NAME
+        exit 0
+        ;;
+    status)
+        # check if the daemon is running
+        daemon_state
+        # if the rc is 0, the daemon is running
+        if [ $? -eq "0" ]; then
+          echo "${NAME} is running"
+        else
+          echo "${NAME} is not running"
+        fi
+        exit 0
+        ;;
+    restart)
+        echo "restarting $DESC: $NAME... "
+        $0 stop
+        $0 start
+        echo "done."
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status|restart}"
+        exit 1
+        ;;
+esac
+
+exit 0

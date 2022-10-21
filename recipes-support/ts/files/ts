@@ -1,0 +1,14 @@
+#!/bin/sh
+
+# timestamp utility to prepend timestamp to the beginning of each line of input.
+# this utility mimics Perl based "ts" utility.
+
+# TODO: this "ts" script is intended as a workaround till we have Perl package
+# and modules along with Perl "ts" utility installed on Daredevil.
+# See LINCON-413 for more detail.
+
+while true;
+do
+	read -r str
+	printf "%s %s\n" "$(date '+%b %d %X')" "$str"
+done

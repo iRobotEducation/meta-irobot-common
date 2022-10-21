@@ -1,0 +1,122 @@
+From c33f5e570a8eb3b1e8cbb9daa9a125252db7406c Mon Sep 17 00:00:00 2001
+From: Patrick Doyle <pdoyle@irobot.com>
+Date: Mon, 20 Jul 2020 14:12:09 -0400
+Subject: [PATCH] ubiformat: Add support for --no flag.
+
+Signed-off-by: Patrick Doyle <pdoyle@irobot.com>
+---
+ ubi-utils/ubiformat.c | 30 ++++++++++++++++++++++++++----
+ 1 file changed, 26 insertions(+), 4 deletions(-)
+
+diff --git a/ubi-utils/ubiformat.c b/ubi-utils/ubiformat.c
+index 508ea6e..c532b03 100644
+--- a/ubi-utils/ubiformat.c
++++ b/ubi-utils/ubiformat.c
+@@ -50,6 +50,7 @@
+ /* The variables below are set by command line arguments */
+ struct args {
+ 	unsigned int yes:1;
++	unsigned int no:1;
+ 	unsigned int quiet:1;
+ 	unsigned int verbose:1;
+ 	unsigned int override_ec:1;
+@@ -95,6 +96,8 @@ static const char optionsstr[] =
+ "                             (by default a random number is picked)\n"
+ "-y, --yes                    assume the answer is \"yes\" for all question\n"
+ "                             this program would otherwise ask\n"
++"-N, --no                     assume the answer is \"no\" for all\n"
++"                             questions this program would otherwise ask\n"
+ "-q, --quiet                  suppress progress percentage information\n"
+ "-v, --verbose                be verbose\n"
+ "-h, -?, --help               print help message\n"
+@@ -105,7 +108,7 @@ static const char usage[] =
+ "\t\t\t[-Q <num>] [-f <file>] [-S <bytes>] [-e <value>] [-x <num>] [-y] [-q] [-v] [-h]\n"
+ "\t\t\t[--sub-page-size=<bytes>] [--vid-hdr-offset=<offs>] [--no-volume-table]\n"
+ "\t\t\t[--flash-image=<file>] [--image-size=<bytes>] [--erase-counter=<value>]\n"
+-"\t\t\t[--image-seq=<num>] [--ubi-ver=<num>] [--yes] [--quiet] [--verbose]\n"
++"\t\t\t[--image-seq=<num>] [--ubi-ver=<num>] [--yes] [--no] [--quiet] [--verbose]\n"
+ "\t\t\t[--help] [--version]\n\n"
+ "Example 1: " PROGRAM_NAME " /dev/mtd0 -y - format MTD device number 0 and do\n"
+ "           not ask questions.\n"
+@@ -119,6 +122,7 @@ static const struct option long_options[] = {
+ 	{ .name = "flash-image",     .has_arg = 1, .flag = NULL, .val = 'f' },
+ 	{ .name = "image-size",      .has_arg = 1, .flag = NULL, .val = 'S' },
+ 	{ .name = "yes",             .has_arg = 0, .flag = NULL, .val = 'y' },
++	{ .name = "no",              .has_arg = 0, .flag = NULL, .val = 'N' },
+ 	{ .name = "erase-counter",   .has_arg = 1, .flag = NULL, .val = 'e' },
+ 	{ .name = "quiet",           .has_arg = 0, .flag = NULL, .val = 'q' },
+ 	{ .name = "verbose",         .has_arg = 0, .flag = NULL, .val = 'v' },
+@@ -137,7 +141,7 @@ static int parse_opt(int argc, char * const argv[])
+ 		int key, error = 0;
+ 		unsigned long int image_seq;
+ 
+-		key = getopt_long(argc, argv, "nh?Vyqve:x:s:O:f:S:", long_options, NULL);
++		key = getopt_long(argc, argv, "nh?VyNqve:x:s:O:f:S:", long_options, NULL);
+ 		if (key == -1)
+ 			break;
+ 
+@@ -183,6 +187,10 @@ static int parse_opt(int argc, char * const argv[])
+ 			args.yes = 1;
+ 			break;
+ 
++		case 'N':
++			args.no = 1;
++			break;
++
+ 		case 'q':
+ 			args.quiet = 1;
+ 			break;
+@@ -232,6 +240,9 @@ static int parse_opt(int argc, char * const argv[])
+ 	if (args.quiet && args.verbose)
+ 		return errmsg("using \"-q\" and \"-v\" at the same time does not make sense");
+ 
++	if (args.yes && args.no)
++		return errmsg("using \"-y\" and \"-N\" at the same time does not make sense");
++
+ 	if (optind == argc)
+ 		return errmsg("MTD device name was not specified (use -h for help)");
+ 	else if (optind != argc - 1)
+@@ -260,6 +271,11 @@ static bool want_to_continue(const char *fmt, ...)
+ 			fprintf(stderr, "%s: continue (y/N) yes\n", PROGRAM_NAME);
+ 		}
+ 		return true;
++	} else if (args.no) {
++		if (!args.quiet) {
++			fprintf(stderr, "%s: continue (y/N) no\n", PROGRAM_NAME);
++		}
++		return false;
+ 	} else {
+ 		return prompt("continue?", false);
+ 	}
+@@ -408,6 +424,9 @@ static int mark_bad(const struct mtd_dev_info *mtd, struct ubi_scan_info *si, in
+ {
+ 	int err;
+ 
++	if (args.no)
++		return -1;
++
+ 	if (!args.yes)
+ 		if (!answer_is_yes("mark it as bad?"))
+ 			return -1;
+@@ -906,13 +925,16 @@ int main(int argc, char * const argv[])
+ 			normsg_cont("use new offsets %d and %d? ",
+ 				    ui.vid_hdr_offs, ui.data_offs);
+ 		}
+-		if (args.yes || answer_is_yes(NULL)) {
++		if (!args.no && (args.yes || answer_is_yes(NULL))) {
+ 			if (args.yes && !args.quiet)
+ 				printf("yes\n");
+-		} else
++		} else {
++			if (args.no && !args.quiet)
++				printf("no\n");
+ 			ubigen_info_init(&ui, mtd.eb_size, mtd.min_io_size, 0,
+ 					 si->vid_hdr_offs, args.ubi_ver,
+ 					 args.image_seq);
++		}
+ 		normsg("use offsets %d and %d",  ui.vid_hdr_offs, ui.data_offs);
+ 	}
+ 
+-- 
+2.24.1
+

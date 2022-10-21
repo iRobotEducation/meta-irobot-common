@@ -1,0 +1,62 @@
+#!/bin/sh
+
+# ota-cleanup script source reference,
+# Platform: Sextant
+# Robot: Sapphire
+# Path: meta-irobot-common-apps/recipes-itc-ota/ota-cleanup
+
+TAGNAME="ota-cleanup"
+
+daemon_start() {
+	UPDATEFILE_DIRECTORY="/data"
+
+	RUN_POST_UPDATE=""
+
+	# check for all the possible ota extension
+    FILELIST=$(find $UPDATEFILE_DIRECTORY -type f \
+                      -iname "*.ota" -o \
+                      -iname "*.swu" -o \
+                      -iname "*.sei" -o \
+                      -iname "*.sec")
+
+    # iterate thru the list and remove
+    for FILE in $FILELIST; do
+        [ -e $FILE ] || continue
+        logger -t ${TAGNAME} "Removing residual file $FILE"
+        rm $FILE > /dev/null 2>&1
+        RUN_POST_UPDATE="true"
+    done
+
+	if [ -z ${RUN_POST_UPDATE} ] ; then
+	    logger -t ${TAGNAME} "No ota-cleanup tasks"
+	fi
+}
+
+daemon_stop() {
+	#do nothing
+	echo ""
+}
+
+daemon_usage() {
+	logger -t ${TAGNAME} "invalid argument"
+    echo "Usage: $0 {start}"
+    exit 1
+}
+
+if [[ $# -ne 1 ]]; then
+    daemon_usage
+fi
+
+case "$1" in
+	start)
+		daemon_start
+	;;
+	stop)
+		daemon_stop
+	;;
+	*)
+		daemon_usage
+	;;
+esac
+
+exit 0
